@@ -8,6 +8,8 @@ _BASE_URL = 'https://api.life360.com/v3/'
 _TOKEN_URL = _BASE_URL + 'oauth2/token.json'
 _CIRCLES_URL = _BASE_URL + 'circles.json'
 _CIRCLE_URL = _BASE_URL + 'circles/{}'
+_CIRCLE_MEMBERS_URL = _CIRCLE_URL + '/members'
+_CIRCLE_PLACES_URL = _CIRCLE_URL + '/places'
 
 
 class life360(object):
@@ -103,3 +105,9 @@ class life360(object):
 
     def get_circle(self, circle_id):
         return self._get(_CIRCLE_URL.format(circle_id))
+
+    def get_circle_members(self, circle_id):
+        return self._get(_CIRCLE_MEMBERS_URL.format(circle_id))['members']
+
+    def get_circle_places(self, circle_id):
+        return self._get(_CIRCLE_PLACES_URL.format(circle_id))['places']
