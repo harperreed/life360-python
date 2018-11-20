@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="life360",
-    version="2.0.0.dev2",
+    version="2.0.0",
     author="Phil Bruckner",
     author_email="pnbruckner@gmail.com",
     description="Life360 Communications Module",
