@@ -34,10 +34,6 @@ class life360(object):
 
     def _save_authorization(self):
         if self._authorization_cache_file:
-            try:
-                os.remove(self._authorization_cache_file)
-            except:
-                pass
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
             mode = stat.S_IRUSR | stat.S_IWUSR
             umask = 0o777 ^ mode
@@ -49,7 +45,15 @@ class life360(object):
             finally:
                 os.umask(umask_orig)
 
-    def _authenticate(self):
+    def _discard_authorization(self):
+        self._authorization = None
+        if self._authorization_cache_file:
+            try:
+                os.remove(self._authorization_cache_file)
+            except:
+                pass
+
+    def _get_authorization(self):
         """Use authorization token, username & password to get access token."""
         try:
             auth_token, username, password = self._auth_info_callback()
@@ -84,18 +88,21 @@ class life360(object):
     def _authorize(self):
         if not self._authorization:
             if not self._load_authorization():
-                self._authenticate()
+                self._get_authorization()
 
     def _get(self, url):
         self._authorize()
         resp = self._session.get(url, timeout=self._timeout,
             headers={'Authorization': self._authorization})
-        # If authorization error (401), try regenerating authorization
+        # If authorization error try regenerating authorization
         # and sending again.
-        if resp.status_code == 401:
-            self._authenticate()
+        if resp.status_code in (401, 403):
+            self._discard_authorization()
+            self._get_authorization()
             resp.request.headers['Authorization'] = self._authorization
             resp = self._session.send(resp.request)
+            if resp.status_code in (401, 403):
+                self._discard_authorization()
 
         resp.raise_for_status()
         return resp.json()
