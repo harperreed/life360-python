@@ -1,11 +1,15 @@
 import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+with open("README.md") as fp:
+    long_description = fp.read()
+
+version = {}
+with open("life360/version.py") as fp:
+    exec(fp.read(), version)
 
 setuptools.setup(
     name="life360",
-    version="2.1.0",
+    version=version['__version__'],
     author="Phil Bruckner",
     author_email="pnbruckner@gmail.com",
     description="Life360 Communications Module",

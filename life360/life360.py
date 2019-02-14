@@ -1,7 +1,8 @@
 import requests
-import json
 import os
 import stat
+
+from .exceptions import *
 
 
 _BASE_URL = 'https://api.life360.com/v3/'
@@ -10,6 +11,7 @@ _CIRCLES_URL = _BASE_URL + 'circles.json'
 _CIRCLE_URL = _BASE_URL + 'circles/{}'
 _CIRCLE_MEMBERS_URL = _CIRCLE_URL + '/members'
 _CIRCLE_PLACES_URL = _CIRCLE_URL + '/places'
+_AUTH_ERRS = (401, 403)
 
 
 class life360(object):
@@ -19,18 +21,14 @@ class life360(object):
         self._auth_info_callback = auth_info_callback
         self._timeout = timeout
         self._authorization_cache_file = authorization_cache_file
-        self._authorization = None
+        self._auth = None
         self._session = requests.Session()
         self._session.headers.update(
             {'Accept': 'application/json', 'cache-control': 'no-cache'})
 
     def _load_authorization(self):
-        if self._authorization_cache_file and os.path.exists(
-                self._authorization_cache_file):
-            with open(self._authorization_cache_file, 'r') as f:
-                self._authorization = f.read()
-            return True
-        return False
+        with open(self._authorization_cache_file) as f:
+            self._auth = f.read()
 
     def _save_authorization(self):
         if self._authorization_cache_file:
@@ -41,12 +39,12 @@ class life360(object):
             try:
                 with open(os.open(
                         self._authorization_cache_file, flags, mode), 'w') as f:
-                    f.write(self._authorization)
+                    f.write(self._auth)
             finally:
                 os.umask(umask_orig)
 
     def _discard_authorization(self):
-        self._authorization = None
+        self._auth = None
         if self._authorization_cache_file:
             try:
                 os.remove(self._authorization_cache_file)
@@ -57,9 +55,10 @@ class life360(object):
         """Use authorization token, username & password to get access token."""
         try:
             auth_token, username, password = self._auth_info_callback()
-        except ValueError as exc:
-            raise ValueError(
-                'auth_info_callback must return tuple of: '
+        except (TypeError, ValueError) as exc:
+            raise AuthInfoCallbackError(
+                'auth_info_callback must be a function '
+                'that returns a tuple of: '
                 'authorization token, username, password') from exc
 
         data = {
@@ -73,32 +72,40 @@ class life360(object):
         if not resp.ok:
             # If it didn't work, try to return a useful error message.
             try:
-                err_msg = json.loads(resp.text)['errorMessage']
-            except:
+                err_msg = resp.json()['errorMessage']
+            except (ValueError, KeyError):
                 resp.raise_for_status()
-                raise ValueError('Unexpected response to {}: {}: {}'.format(
+                raise Life360Error('Unexpected response to {}: {}: {}'.format(
                     _TOKEN_URL, resp.status_code, resp.text))
-            raise ValueError(err_msg)
+            if resp.status_code in _AUTH_ERRS and 'login' in err_msg.lower():
+                raise LoginError(err_msg)
+            raise Life360Error(err_msg)
 
-        resp = resp.json()
-        self._authorization = ' '.join([resp['token_type'],
-                                        resp['access_token']])
+        try:
+            resp = resp.json()
+            self._auth = ' '.join([resp['token_type'], resp['access_token']])
+        except (ValueError, KeyError):
+            raise Life360Error('Unexpected response to {}: {}: {}'.format(
+                _TOKEN_URL, resp.status_code, resp.text))
+
         self._save_authorization()
 
-    def _authorize(self):
-        if not self._authorization:
-            if not self._load_authorization():
+    @property
+    def _authorization(self):
+        if not self._auth:
+            try:
+                self._load_authorization()
+            except:
                 self._get_authorization()
+        return self._auth
 
     def _get(self, url):
-        self._authorize()
         resp = self._session.get(url, timeout=self._timeout,
             headers={'Authorization': self._authorization})
         # If authorization error try regenerating authorization
         # and sending again.
         if resp.status_code in (401, 403):
             self._discard_authorization()
-            self._get_authorization()
             resp.request.headers['Authorization'] = self._authorization
             resp = self._session.send(resp.request)
             if resp.status_code in (401, 403):
