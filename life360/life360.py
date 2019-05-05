@@ -1,4 +1,9 @@
-import json
+# This is what requests does.
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 import logging
 import os
 import stat
@@ -19,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class life360(object):
-
+    """Life360 API"""
     def __init__(self, api_token, username, password, timeout=None,
                  authorization_cache_file=None):
         self._credentials = {
@@ -71,7 +76,8 @@ class life360(object):
                         self._cache_file, flags, mode), 'w') as f:
                     json.dump(cache, f)
             except Exception as error:
-                _LOGGER.warning('Could not save authorization to cache file: %s', error)
+                _LOGGER.warning(
+                    'Could not save authorization to cache file: %s', error)
             finally:
                 os.umask(umask_orig)
 
@@ -89,28 +95,30 @@ class life360(object):
             'username': self._credentials['username'],
             'password': self._credentials['password'],
         }
-        resp = self._session.post(
-            _TOKEN_URL, data=data, timeout=self._timeout, headers={
-                'Authorization': 'Basic ' + self._credentials['api_token']})
-
-        if not resp.ok:
-            # If it didn't work, try to return a useful error message.
+        try:
+            resp = self._session.post(
+                _TOKEN_URL, data=data, timeout=self._timeout,
+                headers={'Authorization':
+                             'Basic ' + self._credentials['api_token']})
+            resp.raise_for_status()
+        except requests.RequestException as error:
+            _LOGGER.debug(
+                'Error while getting authorization token: %s', error)
+            # Try to return a useful error message.
             try:
                 err_msg = resp.json()['errorMessage']
-            except (ValueError, KeyError):
-                resp.raise_for_status()
-                raise Life360Error('Unexpected response to {}: {}: {}'.format(
-                    _TOKEN_URL, resp.status_code, resp.text))
+            except (json.JSONDecodeError, ValueError, KeyError):
+                raise CommError(error)
             if resp.status_code in _AUTH_ERRS and 'login' in err_msg.lower():
                 raise LoginError(err_msg)
-            raise Life360Error(err_msg)
-
+            raise CommError(err_msg)
         try:
             resp = resp.json()
             self._auth = ' '.join([resp['token_type'], resp['access_token']])
-        except (ValueError, KeyError):
-            raise Life360Error('Unexpected response to {}: {}: {}'.format(
-                _TOKEN_URL, resp.status_code, resp.text))
+        except (json.JSONDecodeError, ValueError, KeyError):
+            raise Life360Error(
+                'Unexpected response while getting authorization token: '
+                '{}: {}'.format(resp.status_code, resp.text))
 
         self._save_authorization()
 
@@ -123,22 +131,29 @@ class life360(object):
         return self._auth
 
     def _get(self, url):
-        resp = self._session.get(url, timeout=self._timeout,
-            headers={'Authorization': self._authorization})
-        # If authorization error try regenerating authorization
-        # and sending again.
-        if resp.status_code in (401, 403):
-            _LOGGER.warning('Error %i %s. Reauthorizing',
-                            resp.status_code, resp.reason)
-            self._discard_authorization()
-            resp.request.headers['Authorization'] = self._authorization
-            resp = self._session.send(resp.request)
+        try:
+            resp = self._session.get(url, timeout=self._timeout,
+                headers={'Authorization': self._authorization})
+            # If authorization error try regenerating authorization
+            # and sending again.
             if resp.status_code in (401, 403):
-                _LOGGER.error('Error %i %s', resp.status_code, resp.reason)
+                _LOGGER.warning('Error %i %s. Reauthorizing',
+                                resp.status_code, resp.reason)
                 self._discard_authorization()
-
-        resp.raise_for_status()
-        return resp.json()
+                resp.request.headers['Authorization'] = self._authorization
+                resp = self._session.send(resp.request)
+                if resp.status_code in (401, 403):
+                    _LOGGER.error('Error %i %s', resp.status_code, resp.reason)
+                    self._discard_authorization()
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.RequestException, json.JSONDecodeError) as error:
+            _LOGGER.debug('Error while getting: %s: %s', url, error)
+            if isinstance(error, requests.RequestException):
+                raise CommError(error)
+            raise Life360Error(
+                'Unexpected response to query: {}: {}'.format(
+                    resp.status_code, resp.text))
 
     def get_circles(self):
         return self._get(_CIRCLES_URL)['circles']
