@@ -12,7 +12,8 @@ import requests
 
 from .exceptions import *
 
-_BASE_URL = 'https://api.life360.com/v3/'
+_PROTOCOL = 'https://'
+_BASE_URL = '{}api.life360.com/v3/'.format(_PROTOCOL)
 _TOKEN_URL = _BASE_URL + 'oauth2/token.json'
 _CIRCLES_URL = _BASE_URL + 'circles.json'
 _CIRCLE_URL = _BASE_URL + 'circles/{}'
@@ -26,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 class life360(object):
     """Life360 API"""
     def __init__(self, api_token, username, password, timeout=None,
-                 authorization_cache_file=None):
+                 authorization_cache_file=None, max_retries=None):
         self._credentials = {
             'api_token': api_token,
             'username': username,
@@ -35,6 +36,10 @@ class life360(object):
         self._cache_file = authorization_cache_file
         self._auth = None
         self._session = requests.Session()
+        if max_retries:
+            self._session.mount(
+                _PROTOCOL,
+                requests.adapters.HTTPAdapter(max_retries=max_retries))
         self._session.headers.update(
             {'Accept': 'application/json', 'cache-control': 'no-cache'})
 
