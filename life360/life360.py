@@ -64,7 +64,8 @@ class Life360:
             # Try to return a useful error message.
             try:
                 err_msg = resp.json()['errorMessage']
-            except (json.JSONDecodeError, ValueError, KeyError):
+            except (UnboundLocalError, json.JSONDecodeError, ValueError,
+                    KeyError):
                 raise CommError(error)
             if resp.status_code in _AUTH_ERRS and 'login' in err_msg.lower():
                 raise LoginError(err_msg)
