@@ -10,7 +10,8 @@ import requests
 from .exceptions import *
 
 _PROTOCOL = 'https://'
-_BASE_URL = '{}api.life360.com/v3/'.format(_PROTOCOL)
+_HOST = 'api.life360.com'
+_BASE_URL = '{}{}/v3/'.format(_PROTOCOL, _HOST)
 _TOKEN_URL = _BASE_URL + 'oauth2/token.json'
 _CIRCLES_URL = _BASE_URL + 'circles.json'
 _CIRCLE_URL = _BASE_URL + 'circles/{}'
@@ -96,9 +97,12 @@ class Life360:
             _LOGGER.debug('Error while getting: %s: %s', url, error)
             if isinstance(error, requests.RequestException):
                 raise CommError(error)
-            raise Life360Error(
-                'Unexpected response to query: {}: {}'.format(
-                    resp.status_code, resp.text))
+            try:
+                raise Life360Error(
+                    'Unexpected response to query: {}: {}'.format(
+                        resp.status_code, resp.text))
+            except UnboundLocalError:
+                raise Life360Error('Unexpected response to query')
 
     def get_circles(self):
         """Get basic data about all Circles."""
@@ -115,3 +119,12 @@ class Life360:
     def get_circle_places(self, circle_id):
         """Get details for Places in given Circle."""
         return self._get(_CIRCLE_PLACES_URL.format(circle_id))['places']
+
+
+class Urllib3Filter(logging.Filter):
+    def filter(self, record):
+        return not (
+            record.levelno == logging.WARNING and _HOST in record.getMessage())
+
+
+logging.getLogger('urllib3.connectionpool').addFilter(Urllib3Filter())
