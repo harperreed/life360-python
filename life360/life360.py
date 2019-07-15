@@ -11,10 +11,13 @@ from .exceptions import *
 
 _PROTOCOL = 'https://'
 _HOST = 'api.life360.com'
-_BASE_URL = '{}{}/v3/'.format(_PROTOCOL, _HOST)
-_TOKEN_URL = _BASE_URL + 'oauth2/token.json'
-_CIRCLES_URL = _BASE_URL + 'circles.json'
-_CIRCLE_URL = _BASE_URL + 'circles/{}'
+_CMD = '/v3/{}'
+_BASE_URL = '{}{}'.format(_PROTOCOL, _HOST)
+_URL = _BASE_URL + '{}'
+_TOKEN_CMD = _CMD.format('oauth2/token.json')
+_TOKEN_URL = _URL.format(_TOKEN_CMD)
+_CIRCLES_URL = _URL.format(_CMD.format('circles.json'))
+_CIRCLE_URL = _URL.format(_CMD.format('circles/{}'))
 _CIRCLE_MEMBERS_URL = _CIRCLE_URL + '/members'
 _CIRCLE_PLACES_URL = _CIRCLE_URL + '/places'
 _AUTH_ERRS = (401, 403)
@@ -123,8 +126,10 @@ class Life360:
 
 class Urllib3Filter(logging.Filter):
     def filter(self, record):
+        msg = record.getMessage()
         return not (
-            record.levelno == logging.WARNING and _HOST in record.getMessage())
+            record.levelno == logging.WARNING and any(txt in msg for txt in (
+                _HOST, _TOKEN_CMD, _CMD.format('circles'))))
 
 
 logging.getLogger('urllib3.connectionpool').addFilter(Urllib3Filter())
