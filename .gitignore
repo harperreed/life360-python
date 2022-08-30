@@ -105,3 +105,5 @@ ENV/
 pyvenv.cfg
 bin/
 share/
+
+.vscode/
