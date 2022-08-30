@@ -27,18 +27,25 @@ HTTP_FORBIDDEN = 403
 class Life360:
     """Life360 API."""
 
+    _timeout: Optional[aiohttp.ClientTimeout] = None
+
     def __init__(
         self,
         session: Optional[aiohttp.ClientSession] = None,
         timeout: Optional[float] = None,
         authorization: Optional[str] = None,
     ) -> None:
-        """Initialize API."""
+        """Initialize API.
+
+        timeout controls total timeout.
+        timeout = None -> default timeout,
+        timeout = 0 -> disable timeout
+        """
         if not session:
-            session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=timeout)
-            )
+            session = aiohttp.ClientSession()
         self._session = session
+        if timeout is not None:
+            self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._authorization = authorization
 
     async def get_authorization(self, username: str, password: str) -> str:
@@ -46,7 +53,7 @@ class Life360:
         resp_json = await self._request(
             method="post",
             url=_TOKEN_URL,
-            headers={"Authorization": f"Basic {CLIENT_TOKEN}"},
+            authorization=f"Basic {CLIENT_TOKEN}",
             data={"grant_type": "password", "username": username, "password": password},
             msg="Error while getting authorization token",
         )
@@ -86,18 +93,14 @@ class Life360:
         """Get URL."""
         if not self._authorization:
             raise Life360Error("No authorization. Call get_authorization")
-        return await self._request(
-            method="get",
-            url=url,
-            headers={"Authorization": self._authorization},
-        )
+        return await self._request(method="get", url=url)
 
     async def _request(
         self,
         *,
         method: str,
         url: str,
-        headers: dict[str, str],
+        authorization: Optional[str] = None,
         data: Optional[dict[str, Any]] = None,
         msg: Optional[str] = None,
     ) -> Any:
@@ -105,16 +108,25 @@ class Life360:
         if not msg:
             msg = f"Error {method.upper()}({url})"
 
+        kwargs = {
+            "headers": {
+                "Accept": "application/json",
+                "cache-control": "no-cache",
+                "Authorization": authorization
+                if authorization
+                else self._authorization,
+            },
+        }
+        if data is not None:
+            kwargs["data"] = data
+        if self._timeout is not None:
+            kwargs["timeout"] = self._timeout
+
         resp_json = {}
         try:
             resp = cast(
                 aiohttp.ClientResponse,
-                await getattr(self._session, method)(
-                    url,
-                    headers={"Accept": "application/json", "cache-control": "no-cache"}
-                    | headers,
-                    data=data,
-                ),
+                await getattr(self._session, method)(url, **kwargs),
             )
             resp_json = await resp.json()
             resp.raise_for_status()
