@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Optional, cast
 
@@ -122,19 +123,24 @@ class Life360:
         if self._timeout is not None:
             kwargs["timeout"] = self._timeout
 
+        status = None
         resp_json = {}
         try:
             resp = cast(
                 aiohttp.ClientResponse,
                 await getattr(self._session, method)(url, **kwargs),
             )
+            status = resp.status
             resp_json = await resp.json()
             resp.raise_for_status()
-        except aiohttp.ClientResponseError as exc:
-            _LOGGER.debug("%s: %s", msg, exc)
+        except (aiohttp.ClientResponseError, asyncio.TimeoutError) as exc:
+            exc_desc = exc.__class__.__name__
+            if exc_args := str(exc):
+                exc_desc = f"{exc_desc}: {exc_args}"
+            _LOGGER.debug("%s: %s", msg, exc_desc)
             # Try to return a useful error message.
-            err_msg = resp_json.get("errorMessage", "").lower() or str(exc)
-            if resp.status == HTTP_FORBIDDEN:
+            err_msg = resp_json.get("errorMessage", "").lower() or exc_desc
+            if status == HTTP_FORBIDDEN:
                 raise LoginError(err_msg)
             raise CommError(err_msg)
 
