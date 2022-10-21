@@ -15,6 +15,7 @@ _CIRCLES_URL = f"{_BASE_CMD}circles.json"
 _CIRCLE_URL_FMT = f"{_BASE_CMD}circles/{{circle_id}}"
 _CIRCLE_MEMBERS_URL_FMT = f"{_CIRCLE_URL_FMT}/members"
 _CIRCLE_PLACES_URL_FMT = f"{_CIRCLE_URL_FMT}/places"
+_RETRY_EXCEPTIONS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class Life360:
         if self._timeout is not None:
             kwargs["timeout"] = self._timeout
 
-        for attempt in range(1, self._max_attempts+1):
+        for attempt in range(1, self._max_attempts + 1):
             status = None
             resp_json = {}
             try:
@@ -142,7 +143,10 @@ class Life360:
                 if exc_args := str(exc):
                     exc_desc = f"{exc_desc}: {exc_args}"
                 _LOGGER.debug("%s attempt %i: %s", msg, attempt, exc_desc)
-                if attempt == self._max_attempts:
+                if (
+                    not isinstance(exc, _RETRY_EXCEPTIONS)
+                    or attempt == self._max_attempts
+                ):
                     # Try to return a useful error message.
                     err_msg = resp_json.get("errorMessage", "").lower() or exc_desc
                     if status == HTTP_FORBIDDEN:
