@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union, cast
 
 import aiohttp
 
@@ -35,7 +35,7 @@ class Life360:
         self,
         *,
         session: Optional[aiohttp.ClientSession] = None,
-        timeout: Optional[float] = None,
+        timeout: Optional[Union[float, aiohttp.ClientTimeout]] = None,
         max_retries: Optional[int] = None,
         authorization: Optional[str] = None,
     ) -> None:
@@ -48,8 +48,10 @@ class Life360:
         if not session:
             session = aiohttp.ClientSession()
         self._session = session
-        if timeout is not None:
+        if isinstance(timeout, float):
             self._timeout = aiohttp.ClientTimeout(total=timeout)
+        elif isinstance(timeout, aiohttp.ClientTimeout):
+            self._timeout = timeout
         self._max_attempts = max_retries + 1 if max_retries else 1
         self._authorization = authorization
 
