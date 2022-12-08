@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Any, Optional, Union, cast
 
 import aiohttp
@@ -17,6 +18,13 @@ _CIRCLE_MEMBERS_URL_FMT = f"{_CIRCLE_URL_FMT}/members"
 _CIRCLE_PLACES_URL_FMT = f"{_CIRCLE_URL_FMT}/places"
 _RETRY_EXCEPTIONS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
+_URL_REDACTION = (re.compile(r"(circles/)[a-zA-Z0-9-]+/"), r"\1REDACTED/")
+_URL_REDACTIONS = (_URL_REDACTION,)
+_EXC_REPR_REDACTIONS = (
+    _URL_REDACTION,
+    (re.compile(r"('Bearer )[^']+'"), r"\1REDACTED'"),
+    (re.compile(r"('L360-ETag': ')[^']*'"), r"\1REDACTED'"),
+)
 _LOGGER = logging.getLogger(__name__)
 
 CLIENT_TOKEN = (
@@ -24,6 +32,14 @@ CLIENT_TOKEN = (
     "h1YzptM2ZydXBSZXRSZXN3ZXJFQ2hBUHJFOTZxYWtFZHI0Vg=="
 )
 HTTP_FORBIDDEN = 403
+
+
+def _redact(s, redactions):
+    """Redact string."""
+    result = s
+    for pat, repl in redactions:
+        result = pat.sub(repl, result)
+    return result
 
 
 class Life360:
@@ -113,7 +129,7 @@ class Life360:
     ) -> Any:
         """Make a request to server."""
         if not msg:
-            msg = f"Error {method.upper()}({url})"
+            msg = f"Error {method.upper()}({_redact(url, _URL_REDACTIONS)})"
 
         kwargs = {
             "headers": {
@@ -141,16 +157,21 @@ class Life360:
                 resp_json = await resp.json()
                 resp.raise_for_status()
             except Exception as exc:
-                exc_desc = exc.__class__.__name__
-                if exc_args := str(exc):
-                    exc_desc = f"{exc_desc}: {exc_args}"
-                _LOGGER.debug("%s attempt %i: %s", msg, attempt, exc_desc)
+                _LOGGER.debug(
+                    "%s attempt %i: %s",
+                    msg,
+                    attempt,
+                    _redact(repr(exc), _EXC_REPR_REDACTIONS),
+                )
                 if (
                     not isinstance(exc, _RETRY_EXCEPTIONS)
                     or attempt == self._max_attempts
                 ):
                     # Try to return a useful error message.
-                    err_msg = resp_json.get("errorMessage", "").lower() or exc_desc
+                    if not (err_msg := resp_json.get("errorMessage", "").lower()):
+                        err_msg = exc.__class__.__name__
+                        if exc_args := _redact(str(exc), _URL_REDACTIONS):
+                            err_msg += f": {exc_args}"
                     if status == HTTP_FORBIDDEN:
                         raise LoginError(err_msg)
                     raise CommError(err_msg)
