@@ -1,4 +1,6 @@
 import asyncio
+from contextlib import suppress
+from json import JSONDecodeError
 import logging
 import re
 from typing import Any, Optional, Union, cast
@@ -154,11 +156,14 @@ class Life360:
                     await getattr(self._session, method)(url, **kwargs),
                 )
                 status = resp.status
+                if not resp.ok:
+                    with suppress(Exception):
+                        resp_json = await resp.json()
+                    resp.raise_for_status()
                 resp_json = await resp.json()
-                resp.raise_for_status()
             except Exception as exc:
                 _LOGGER.debug(
-                    "%s attempt %i: %s",
+                    "%s, attempt %i: %s",
                     msg,
                     attempt,
                     _redact(repr(exc), _EXC_REPR_REDACTIONS),
