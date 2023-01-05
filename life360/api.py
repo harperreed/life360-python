@@ -1,8 +1,8 @@
 import asyncio
-from contextlib import suppress
-from json import JSONDecodeError
+from contextlib import AbstractAsyncContextManager, suppress
 import logging
 import re
+from types import TracebackType
 from typing import Any, Optional, Union, cast
 
 import aiohttp
@@ -18,6 +18,7 @@ _CIRCLES_URL = f"{_BASE_CMD}circles.json"
 _CIRCLE_URL_FMT = f"{_BASE_CMD}circles/{{circle_id}}"
 _CIRCLE_MEMBERS_URL_FMT = f"{_CIRCLE_URL_FMT}/members"
 _CIRCLE_PLACES_URL_FMT = f"{_CIRCLE_URL_FMT}/places"
+_MEMBER_UPDATE_URL_FMT = f"{_CIRCLE_MEMBERS_URL_FMT}/{{member_id}}/request"
 _RETRY_EXCEPTIONS = (aiohttp.ClientConnectionError, asyncio.TimeoutError)
 
 _URL_REDACTION = (re.compile(r"(circles/)[a-zA-Z0-9-]+/"), r"\1REDACTED/")
@@ -34,6 +35,15 @@ CLIENT_TOKEN = (
     "h1YzptM2ZydXBSZXRSZXN3ZXJFQ2hBUHJFOTZxYWtFZHI0Vg=="
 )
 HTTP_FORBIDDEN = 403
+HTTP_BAD_GATEWAY = 502
+HTTP_SERVICE_UNAVAILABLE = 503
+HTTP_GATEWAY_TIME_OUT = 504
+
+RETRY_CLIENT_RESPONSE_ERRORS = (
+    HTTP_BAD_GATEWAY,
+    HTTP_SERVICE_UNAVAILABLE,
+    HTTP_GATEWAY_TIME_OUT,
+)
 
 
 def _redact(s, redactions):
@@ -44,7 +54,17 @@ def _redact(s, redactions):
     return result
 
 
-class Life360:
+def _retry(exc):
+    """Determine if request should be retried."""
+    if isinstance(exc, _RETRY_EXCEPTIONS):
+        return True
+    return (
+        isinstance(exc, aiohttp.ClientResponseError)
+        and exc.status in RETRY_CLIENT_RESPONSE_ERRORS
+    )
+
+
+class Life360(AbstractAsyncContextManager):
     """Life360 API."""
 
     _timeout: Optional[aiohttp.ClientTimeout] = None
@@ -63,15 +83,26 @@ class Life360:
         timeout = None -> default timeout,
         timeout = 0 -> disable timeout
         """
+        self._session_provided = bool(session)
         if not session:
             session = aiohttp.ClientSession()
-        self._session = session
+        self._session: Optional[aiohttp.ClientSession] = session
         if isinstance(timeout, float):
             self._timeout = aiohttp.ClientTimeout(total=timeout)
         elif isinstance(timeout, aiohttp.ClientTimeout):
             self._timeout = timeout
         self._max_attempts = max_retries + 1 if max_retries else 1
         self._authorization = authorization
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> Optional[bool]:
+        """Exit context manager."""
+        await self.close()
+        return await super().__aexit__(exc_type, exc_value, traceback)
 
     async def get_authorization(self, username: str, password: str) -> str:
         """Get authorization string from username & password."""
@@ -114,11 +145,34 @@ class Life360:
             "places"
         ]
 
+    async def update_location(
+        self, circle_id: str, member_id: str
+    ) -> list[dict[str, Any]]:
+        """Request location update for Member."""
+        return await self._post(
+            _MEMBER_UPDATE_URL_FMT.format(circle_id=circle_id, member_id=member_id),
+            {"type": "location"},
+        )
+
+    async def close(self) -> None:
+        """Close."""
+        if not self._session:
+            return
+        if not self._session_provided:
+            await self._session.close()
+        self._session = None
+
     async def _get(self, url: str) -> Any:
         """Get URL."""
         if not self._authorization:
             raise Life360Error("No authorization. Call get_authorization")
         return await self._request(method="get", url=url)
+
+    async def _post(self, url: str, data: Optional[dict[str, Any]] = None) -> Any:
+        """Get URL."""
+        if not self._authorization:
+            raise Life360Error("No authorization. Call get_authorization")
+        return await self._request(method="post", url=url, data=data)
 
     async def _request(
         self,
@@ -130,6 +184,9 @@ class Life360:
         msg: Optional[str] = None,
     ) -> Any:
         """Make a request to server."""
+        if not self._session:
+            raise Life360Error("Object is closed")
+
         if not msg:
             msg = f"Error {method.upper()}({_redact(url, _URL_REDACTIONS)})"
 
@@ -168,10 +225,7 @@ class Life360:
                     attempt,
                     _redact(repr(exc), _EXC_REPR_REDACTIONS),
                 )
-                if (
-                    not isinstance(exc, _RETRY_EXCEPTIONS)
-                    or attempt == self._max_attempts
-                ):
+                if not _retry(exc) or attempt == self._max_attempts:
                     # Try to return a useful error message.
                     if not (err_msg := resp_json.get("errorMessage", "").lower()):
                         err_msg = exc.__class__.__name__
