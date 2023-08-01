@@ -10,7 +10,7 @@ import aiohttp
 from .exceptions import *
 
 _PROTOCOL = "https://"
-_HOST = "api.life360.com"
+_HOST = "api-cloudfront.life360.com"
 _BASE_URL = f"{_PROTOCOL}{_HOST}"
 _BASE_CMD = f"{_BASE_URL}/v3/"
 _TOKEN_URL = f"{_BASE_CMD}oauth2/token.json"
@@ -30,9 +30,10 @@ _EXC_REPR_REDACTIONS = (
 )
 _LOGGER = logging.getLogger(__name__)
 
+USER_AGENT = "com.life360.android.safetymapd"
 CLIENT_TOKEN = (
-    "cFJFcXVnYWJSZXRyZTRFc3RldGhlcnVmcmVQdW1hbUV4dWNyRU"
-    "h1YzptM2ZydXBSZXRSZXN3ZXJFQ2hBUHJFOTZxYWtFZHI0Vg=="
+    "Y2F0aGFwYWNyQVBoZUtVc3RlOGV2ZXZldnVjSGFmZVRydVl1Zn"
+    "JhYzpkOEM5ZVlVdkE2dUZ1YnJ1SmVnZXRyZVZ1dFJlQ1JVWQ=="
 )
 HTTP_FORBIDDEN = 403
 HTTP_BAD_GATEWAY = 502
@@ -194,6 +195,7 @@ class Life360(AbstractAsyncContextManager):
             "headers": {
                 "Accept": "application/json",
                 "cache-control": "no-cache",
+                "user-agent": USER_AGENT,
                 "Authorization": authorization
                 if authorization
                 else self._authorization,
