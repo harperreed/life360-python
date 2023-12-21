@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish:
+  publish-testpypi:
     runs-on: ubuntu-latest
+    environment: publish-testpypi
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
