@@ -5,7 +5,7 @@ on:
     tags:
       - '*.*.*'
 
-  worflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   publish:
