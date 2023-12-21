@@ -12,10 +12,11 @@ from .exceptions import *
 _PROTOCOL = "https://"
 _HOST = "api-cloudfront.life360.com"
 _BASE_URL = f"{_PROTOCOL}{_HOST}"
-_BASE_CMD = f"{_BASE_URL}/v3/"
-_TOKEN_URL = f"{_BASE_CMD}oauth2/token.json"
-_CIRCLES_URL = f"{_BASE_CMD}circles.json"
-_CIRCLE_URL_FMT = f"{_BASE_CMD}circles/{{circle_id}}"
+_BASE_CMD_V3 = f"{_BASE_URL}/v3/"
+_BASE_CMD_V4 = f"{_BASE_URL}/v4/"
+_TOKEN_URL = f"{_BASE_CMD_V3}oauth2/token"
+_CIRCLES_URL = f"{_BASE_CMD_V4}circles"
+_CIRCLE_URL_FMT = f"{_BASE_CMD_V3}circles/{{circle_id}}"
 _CIRCLE_MEMBERS_URL_FMT = f"{_CIRCLE_URL_FMT}/members"
 _CIRCLE_PLACES_URL_FMT = f"{_CIRCLE_URL_FMT}/places"
 _MEMBER_UPDATE_URL_FMT = f"{_CIRCLE_MEMBERS_URL_FMT}/{{member_id}}/request"
@@ -30,7 +31,7 @@ _EXC_REPR_REDACTIONS = (
 )
 _LOGGER = logging.getLogger(__name__)
 
-USER_AGENT = "com.life360.android.safetymapd"
+USER_AGENT = "com.life360.android.safetymapd/KOKO/23.49.0 android/13"
 CLIENT_TOKEN = (
     "Y2F0aGFwYWNyQVBoZUtVc3RlOGV2ZXZldnVjSGFmZVRydVl1Zn"
     "JhYzpkOEM5ZVlVdkE2dUZ1YnJ1SmVnZXRyZVZ1dFJlQ1JVWQ=="
