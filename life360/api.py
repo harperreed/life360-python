@@ -31,7 +31,7 @@ _EXC_REPR_REDACTIONS = (
 )
 _LOGGER = logging.getLogger(__name__)
 
-USER_AGENT = "com.life360.android.safetymapd/KOKO/23.49.0 android/13"
+USER_AGENT = "com.life360.android.safetymapd/KOKO/23.50.0 android/13"
 CLIENT_TOKEN = (
     "Y2F0aGFwYWNyQVBoZUtVc3RlOGV2ZXZldnVjSGFmZVRydVl1Zn"
     "JhYzpkOEM5ZVlVdkE2dUZ1YnJ1SmVnZXRyZVZ1dFJlQ1JVWQ=="
