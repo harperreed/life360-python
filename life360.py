@@ -5,10 +5,11 @@ class life360:
     
     # base_url = "https://api.life360.com/v3/"
     base_url = "https://api-cloudfront.life360.com/v3/"
-    token_url = "oauth2/token.json"
-    circles_url = "circles.json"
+    base_url_v4 = "https://api-cloudfront.life360.com/v4/
+    token_url = "oauth2/token"
+    circles_url = "circles"
     circle_url = "circles/"
-    user_agent = "com.life360.android.safetymapd"
+    user_agent = "com.life360.android.safetymapd/KOKO/23.49.0 android/13"
     
 
     def __init__(self, authorization_token=None, username=None, password=None):
@@ -30,7 +31,6 @@ class life360:
 
     def authenticate(self):
         
-
         url = self.base_url + self.token_url
         params = {
             "grant_type":"password",
@@ -46,7 +46,7 @@ class life360:
             return False
 
     def get_circles(self):
-        url = self.base_url + self.circles_url
+        url = self.base_url_v4 + self.circles_url
         authheader="bearer " + self.access_token
         r = self.make_request(url=url, method='GET', authheader=authheader)
         return r['circles']
