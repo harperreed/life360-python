@@ -52,15 +52,15 @@ if __name__ == "__main__":
 
         #Let's display some goodies
 
-        print "Circle name:", circle['name']
-        print "Members (" + circle['memberCount'] + "):"
+        print("Circle name:", circle['name'])
+        print("Members (" + circle['memberCount'] + "):")
         for m in circle['members']:
 
-            print "\tName:", m['firstName'],m['lastName']
-            print "\tLocation:" , m['location']['name']
-            print "\tLatLng:" , m['location']['latitude'] +", "+ m['location']['longitude']
-            print "\tHas been at " +m['location']['name'] +" since " + prettydate(datetime.datetime.fromtimestamp(int(m['location']['since'])))
-            print "\tBattery level:" , m['location']['battery'] +"%"
-            print "\t"
+            print("\tName:", m['firstName'], m['lastName'])
+            print("\tLocation:" , m['location']['name'])
+            print("\tLatLng:" , m['location']['latitude'] +", "+ m['location']['longitude'])
+            print("\tHas been at " + str(m['location']['name']) +" since " + prettydate(datetime.datetime.fromtimestamp(int(str(m['location']['since'])))))
+            print("\tBattery level:" , m['location']['battery'] +"%")
+            print("\t")
     else:
-        print "Error authenticating"
+        print("Error authenticating")
